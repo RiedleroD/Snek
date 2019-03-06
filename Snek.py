@@ -112,7 +112,7 @@ def main(stdscr):
 def scorecalc():
 	global snek
 	apples=snek["length"]-2
-	snek["finalscore"]=(apples/(snek["time"]/30+1))*(speed**2)*10
+	snek["finalscore"]=(apples/(snek["time"]/50+1))*(speed**2)*10
 def timecalc():
 	global snek, starttime
 	snek["time"]=time.time()-starttime
