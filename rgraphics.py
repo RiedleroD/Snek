@@ -1,1 +1,1 @@
-/home/riedler/Schreibtisch/Scripts/RGraphics/rgraphics.py
+/home/riedler/Dokumente/Scripts/RGraphics/rgraphics.py

@@ -1,8 +1,8 @@
+#!/usr/bin/python3
 import os, sys, rgraphics, time, curses, random
 curpath=os.path.abspath(os.path.dirname(__file__))+"/"
-screen=rgraphics.graphic()
-shds=rgraphics.shds
-colr=rgraphics.colr
+shds=rgraphics.Shades()
+colr=rgraphics.Color()
 ######Snek()#############################################################
 class Snek():
 	def __init__(self,length=2,posx=15,posy=15,automated=False):
@@ -14,6 +14,7 @@ class Snek():
 		self.dead=False
 		self.automated=automated
 		self.t=0
+		self.score=0
 	def move(self):
 		d=self.dir
 		if d==0:
@@ -28,13 +29,10 @@ class Snek():
 		self.dots.append([snek.posy,snek.posx])
 		while len(self.dots)>self.len:
 			self.dots.pop(0)
-	def drawon(self,screen):
+	def drawon(self):
+		global screen
 		for dot in self.dots:
-			try:
-				screen.content[dot[0]][dot[1]]=colr.grn+shds.a+colr.rst
-			except IndexError:
-				raise IndexError("\ndot="+str(dot)+"\nlen(screen.content)="+str(len(screen.content)))
-		return screen
+			screen.content[dot[0]][dot[1]]=rgraphics.Px(colr.grn,shds.a)
 	def keyfunc(self,key=None):
 		if key in [259,119] and self.dir!=2:
 			self.dir=0
@@ -86,7 +84,7 @@ class Snek():
 	def scorecalc(self):
 		global speed
 		apples=self.len-2
-		snek.score=(apples/(snek.t/50+1))*(speed**2)*10
+		self.score=(apples/(self.t**(1/(snek.t+1))))*(speed**2)
 	def timecalc(self):
 		global starttime
 		self.t=time.time()-starttime
@@ -96,23 +94,33 @@ class Snek():
 		print("\033[1J\rScore: "+str(apples)+" apples in "+str(int(self.t))+" seconds at a speed of "+str(speed)+". That's a total score of "+str(int(self.score)))
 		os.system("setterm -cursor on")
 		input()
-########################################################################################
-def setup():
-	global dots, apple, walls, dead, snek, bos, automated, speed
+####setup()#############################################################################
+def setup(interactive:bool=False):
+	global dots, apple, walls, dead, snek, bos, automated, speed, screen
 	snek=Snek()
-	speed=float(input("How fast do you want to have it?\n"))
-	if speed<0.3 or speed>10:
-		raise ValueError("Speed has to be bigger than 0 and smaller or equal 10.")
-	height=width=30
-	if len(sys.argv)>1:
-		if sys.argv[-1].startswith("/"):
-			f=open(sys.argv[-1],"r")
-		elif sys.argv[-1].startswith("./"):
-			f=open(curpath+sys.argv[-1][2:],"r")
-		else:
-			f=open(curpath+sys.argv[-1],"r")
+	if interactive:
+		speed=float(input("How fast do you want to have it?\n"))
 	else:
-		f=open(curpath+"default.rsa")
+		speed=10.0
+	if speed<0.3 or speed>10.0:
+		raise ValueError("Speed has to be bigger or equal 0.3 and smaller or equal 10.")
+	height=width=30
+	if interactive:
+		if len(sys.argv)>1:
+			if sys.argv[-1].startswith("/"):
+				f=open(sys.argv[-1],"r")
+			elif sys.argv[-1].startswith("./"):
+				f=open(curpath+sys.argv[-1][2:],"r")
+			else:
+				f=open(curpath+sys.argv[-1],"r")
+		else:
+			try:
+				f=open(curpath+input("What map should be used?\n")+".rsa")
+			except OSError:
+				print("Doesn't exist, using default map.")
+				f=open(curpath+"default.rsa")
+	else:
+		f=open(curpath+"closed.rsa")
 	arena=f.read().lower().split("\n")
 	for line in arena:
 		if line.startswith("walls"):
@@ -141,43 +149,50 @@ def setup():
 		elif line.startswith("screen-width"):
 			width=int(line.split("=")[-1])
 	f.close()
-	snek.automated=input("Should the Snake be automated? (y/n)\n")
-	if snek.automated.lower()=="n":
-		snek.automated=False
+	screen=rgraphics.Graphic(height=height,width=width)
+	if interactive:
+		snek.automated=input("Should the Snake be automated? (y/n)\n")
+		if snek.automated.lower()=="n":
+			snek.automated=False
+		else:
+			snek.automated=True
+		os.system("setterm -cursor off")
 	else:
 		snek.automated=True
-	screen.init(width,height,shds.d)
-	os.system("setterm -cursor off")
 	bos=[None,None,random.randint(-100,0)*-1]
-setup()
+if __name__=="__main__":
+	setup(interactive=True)
+else:
+	setup(interactive=False)
+####main(######)########################################################################
 def main(stdscr):
 	global apple, walls, snek, bos, screen
-	stdscr.nodelay(1)				#sets waiting for key press to none
+	stdscr.nodelay(True)							#sets waiting for key press to none
 	while not snek.dead:
 		if snek.automated:
 			key=autokey()
 		else:
-			key = stdscr.getch()		#gets key press
-		#if key!=-1:
-		#	print(key)
-		snek.keyfunc(key)				#steers the snek
-		snek.move() 						#moves the snake
-		snek.wrap(screen) 						#wraps the edges of the screen
-		snek.dead=snek.checkdeath(snek.dots+walls) #checks if the snake dies of going into itsef or the walls
+			key = stdscr.getch()					#gets key press
+		snek.keyfunc(key)							#steers the snek
+		snek.move() 								#moves the snake
+		snek.wrap(screen) 							#wraps the edges of the screen
+		snek.dead=snek.checkdeath(snek.dots+walls)	#checks if the snake dies of going into itsef or the walls
 		apple=snek.checkapple(apple)				#checks if snake eats apple and sets a new apple and lengthens the snek if true
-		bos=snek.checkbos(bos)					#handles the bottle of speed
-		snek.timecalc()					#calculates passed time
-		snek.scorecalc()					#calculates scores
+		bos=snek.checkbos(bos)						#handles the bottle of speed
+		snek.timecalc()								#calculates passed time
+		snek.scorecalc()							#calculates scores
 		snek.checkdots()
-		screen=snek.drawon(screen) 						#renders and displays all objects
+		snek.drawon() 								#renders and displays all objects
 		draw()
 		time.sleep(0.1/speed)
+####randpos(######################################################################)#####
 def randpos(minx=0,maxx=len(screen.content)-1,miny=0,maxy=len(screen.content[0])-1):
 	return [random.randint(minx,maxx),random.randint(miny,maxy)]
 #259↑ 261→ 258↓ 260←
 #119W 97 A 115S 100D
+####autokey()###########################################################################
 def autokey():
-	global apple, snek, dots, walls
+	global apple, snek,walls
 	deadly=snek.dots+walls
 	right=left=up=down=False
 	if apple[1]>snek.posx and not [snek.posy,snek.posx+1] in deadly:
@@ -228,28 +243,41 @@ def autokey():
 			return 260
 		elif right:
 			return 261
+		else:
+			return 0
+####draw()##############################################################################
 def draw():
 	if bos[2]==0:
-		try:
-			screen.content[bos[0]][bos[1]]=colr.bue+shds.a+colr.rst
-		except IndexError:
-			raise IndexError("bos="+str(bos)+", doesn't fit into screen.content with is "+str(len(screen.content))+"x"+str(len(screen.content[0]))+" big.")
-	try:
-		screen.content[apple[0]][apple[1]]=colr.red+shds.a+colr.rst
-	except IndexError:
-		raise IndexError("apple="+str(apple)+", doesn't fit into screen.content with is "+str(len(screen.content))+"x"+str(len(screen.content[0]))+" big.")
+		screen.content[bos[0]][bos[1]]=rgraphics.Px(colr.bue,shds.a)
+	screen.content[apple[0]][apple[1]]=rgraphics.Px(colr.red,shds.a)
 	for wall in walls:
-		screen.content[wall[0]][wall[1]]=shds.a
+		screen.content[wall[0]][wall[1]]=rgraphics.Px(colr.wht,shds.a)
 	screen.display()
-	sys.stdout.write("\033["+str(len(screen.content)+1)+";0H"+shds.d*len(screen.content[0])+"\r"+"Apples:\033[1C"+str(snek.len-2)+"\033[2CTime:\033[1C"+str(int(snek.t))+"\033[2CFinal Score:\033[1C"+str(int(snek.score)))
+	towrite="\033[0m\033["+str(len(screen.content)+1)+";0H\rApples: "+str(snek.len-2)+"  Time: "+str(int(snek.t))+"  Final Score: "+str(int(snek.score))
+	sys.stdout.write(towrite+" "*(59-(len(screen.content[0])+len(str(snek.len-2)+str(int(snek.t))+str(int(snek.score))))))
+def findonmap(y,x):	#returns 0 for nothing, 1 for apple, 2 for boost, -1 for snake and -2 for wall
+	if apple==(y,x):
+		return 1
+	elif bos==(y,x,0):
+		return 2
+	elif (y,x) in snek.dots:
+		return -1
+	elif (y,x) in walls:
+		return -2
+	else:
+		return 0
+def start():
+	global starttime
+	starttime=time.time()
+	try:
+		curses.wrapper(main)
+	except KeyboardInterrupt:
+		rgraphics.clearscreen()
+	try:
+		snek.die()
+	except KeyboardInterrupt:
+		quit()
 #259↑ 261→ 258↓ 260←
 #119W 100D 115S 97 A
-starttime=time.time()
-try:
-	curses.wrapper(main)
-except KeyboardInterrupt:
-	rgraphics.clearscreen()
-try:
-	snek.die()
-except KeyboardInterrupt:
-	quit()
+if __name__=="__main__":
+	start()
