@@ -4,49 +4,64 @@ from time import time, sleep
 import Snek as snek
 
 class Network():
-	def __init__(self,syns:list=[x+2 for x in reversed(range(49))]):
-		self.nodes=[[0,[random.randrange(1-syns,syns)]] for y in range(syns)]
+	def __init__(self):
+		self.nodes=[]
 		self.nice=0
 		self.lessernice=0
 		self.steps=0
 	def react(self,inpot:list,r:int=1):
+		while len(inpot)>=len(self.nodes):
+			self.nodes.append(self.getrandnode())
 		self.steps+=1
 		for i in range(len(inpot)):
 			self.nodes[i][0]=inpot[i]
-		for i in range(len(self.nodes)):
+		for i in range(len(inpot),len(self.nodes)):
 			for source in self.nodes[i][1]:
-				if source>=0:
-					self.nodes[i][0]+=self.nodes[source][0]
-				elif source<0:
-					self.nodes[i][0]-=self.nodes[-source][0]
+				try:
+					if source>=0:
+						self.nodes[i][0]+=self.nodes[source][0]
+					elif source<0:
+						self.nodes[i][0]-=self.nodes[-source][0]
+				except IndexError:
+					pass
 		result=[node[0] for node in self.nodes[-r:]]
 		for i in range(len(self.nodes)):
 			self.nodes[i][0]=0
 		return result 
 	def mutate(self,rate:float=0.1):
-		mut=random.choices([True,False,None],[rate,100,rate//2],k=len(self.nodes))
+		mut=random.choices([True,None,False],[rate,100,rate//2],k=len(self.nodes))
 		for i in range(len(self.nodes)):
 			if mut[i]:
 				self.nodes[i][1].append(random.randrange(1-len(self.nodes),len(self.nodes)))
-			elif mut[i]==None and len(self.nodes[i][1])>0:
+			elif mut[i]==False and len(self.nodes[i][1])>0:
 				self.nodes[i][1].pop(random.randrange(len(self.nodes[i][1])))
+		while random.choice([True,False,False]):
+			self.nodes.append(self.getrandnode())
+	def getrandnode(self):
+		node=[0,[]]
+		while random.choice([True,False]) and len(self.nodes)!=0:
+			node[1].append(random.randrange(len(self.nodes)))
+		return node
 	def getf_cked(self,orgyattenders:list):
 		if len(orgyattenders)==0:
 			raise ValueError("List can't be empty")
 		orgyattenders.append(self)
-		whirlpool=[[perv.nodes[i][1] for perv in orgyattenders] for i in range(len(self.nodes))]
-		self.nodes=[[0,random.choice(whirlpool[i])] for i in range(len(whirlpool))]
+		whirlpool=[[]]*max(len(perv.nodes) for perv in orgyattenders)
+		for perv in orgyattenders:
+			for i,node in enumerate(perv.nodes):
+				whirlpool[i].append(node)
+		self.nodes=[random.choice(puddle) for puddle in whirlpool]
 
 class Pool():
-	def __init__(self,pop_count:int=100,elite_size:int=10,mutation_rate:float=0.1,name:str="default",network_syns:int=1024,loadin:bool=False):
+	def __init__(self,pop_count:int=100,elite_size:int=10,mutation_rate:float=0.1,name:str="default",loadin:bool=False):
 		if not loadin:
 			self.gen=0
 			self.name=name.lower()
 			self.elite_size=elite_size
 			self.rate=mutation_rate
 			self.pop_count=pop_count
-			print("  Generating %s Neural Networks with %s synapses each"%(pop_count,network_syns))
-			self.pop=[Network(network_syns) for x in range(pop_count) if print("  ",100*x//pop_count,"%",sep="",end="\r") or True]
+			print("  Generating %s Neural Networks"%(pop_count))
+			self.pop=[Network() for x in range(pop_count) if print("  ",100*x//pop_count,"%",sep="",end="\r") or True]
 	def evolve(self,rate:float=0.5):
 		elite=[]
 		self.sort()
@@ -122,13 +137,13 @@ class Snek_Manager():
 					n2=",-inf"
 				else:
 					n2=","+str(n2)
-				sys.stdout.write("\n\rNET:"+str(cycle)+"/"+str(len(self.pool.pop))+"  \n\rGEN:"+str(self.pool.gen)+"  \n\rHISC:"+str(round(self.highscore,2))+" net "+str(self.champ[1])+" in gen "+str(self.champ[0])+"     \n\rHIDI:"+str(round(nearest,2))+"   \n\r\033[2KOUT:("+n1+n2+")    ")
+				sys.stdout.write("\n\rNET:"+str(cycle)+"/"+str(len(self.pool.pop))+"  \n\rGEN:"+str(self.pool.gen)+"  \n\rHISC:"+str(round(self.highscore,2))+" net "+str(self.champ[1])+" in gen "+str(self.champ[0])+"     \n\rHIDI:"+str(round(nearest,2))+"   \n\rNodes: "+str(len(nw.nodes))+"   \n\r\033[2KOUT:("+n1+n2+")    ")
 				if cycle==0:
 					sleep(0.01)
 			elif nw.steps==2:
 				sys.stdout.write("\rNET:"+str(cycle)+"/"+str(len(self.pool.pop)))
 			elif cycle==10 and nw.steps==1:
-				sys.stdout.write("\033[4A")
+				sys.stdout.write("\033[5A")
 			if nw.steps>64 and (snek.snek.len-2)/(nw.steps/64)<0.3:
 				snek.snek.dead=True
 		return nearest
@@ -148,12 +163,13 @@ class Snek_Manager():
 				if snek.snek.score>self.highscore:
 					self.highscore=snek.snek.score
 					self.champ=(self.pool.gen,cycle)
+				del snek.snek
 				snek.snek=snek.Snek()
 			self.pool.evolve()
 			self.dump()
 			
 	def autokey(self,nw):
-		inpot=[snek.snek.dir,snek.snek.posy,snek.snek.posx]+[coordinate for x,y in snek.snek.dots for coordinate in (x,y)]		#appends a 5x5 radius around the snake to the input
+		inpot=[snek.snek.dir,snek.snek.posy,snek.snek.posx,*snek.apple]+[coordinate for x,y in snek.snek.dots for coordinate in (x,y)]		#appends a 5x5 radius around the snake to the input
 		n1,n2=nw.react(inpot,2)
 		if n1<0 and n2<0:
 			return 259,n1,n2			#up
