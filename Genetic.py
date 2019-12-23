@@ -32,11 +32,17 @@ class Network():
 		mut=random.choices([True,None,False],[rate,100,rate//2],k=len(self.nodes))
 		for i in range(len(self.nodes)):
 			if mut[i]:
-				self.nodes[i][1].append(random.randrange(1-len(self.nodes),len(self.nodes)))
+				self.nodes[i][1].insert(random.randrange(len(self.nodes[i][1])+1),random.randrange(1-len(self.nodes),len(self.nodes)))
 			elif mut[i]==False and len(self.nodes[i][1])>0:
 				self.nodes[i][1].pop(random.randrange(len(self.nodes[i][1])))
-		while random.choice([True,False,False]):
-			self.nodes.append(self.getrandnode())
+		while True:
+			res=random.choice([True,True,False,None,None,None])
+			if res:
+				self.nodes.append(self.getrandnode())
+			elif res==False and len(self.nodes)>0:
+				self.nodes.pop(random.randrange(len(self.nodes)))
+			elif res==None:
+				break
 	def getrandnode(self):
 		node=[0,[]]
 		while random.choice([True,False]) and len(self.nodes)!=0:
@@ -94,15 +100,16 @@ class Pool():
 class Snek_Manager():
 	def __init__(self,load_from_file:bool=True):
 		print("  Initializing the pool")
+		self.lff=load_from_file
 		self.pool=Pool(loadin=load_from_file)
 		if load_from_file:
 			print("  Loading from file")
 			with open(".genetic_pool.pkl","rb") as f:
-				self.pool.name,self.pool.elite_size,self.pool.rate,self.pool.pop_count,self.pool.pop,self.pool.gen=pickle.load(f)
+				self.pool.name,self.pool.elite_size,self.pool.rate,self.pool.pop_count,self.pool.pop,self.pool.gen,self.highscore,self.champ=pickle.load(f)
 	def dump(self):
 		self.pool.dump_best()
 		with open(".genetic_pool.pkl","wb") as f:
-			pickle.dump((self.pool.name,self.pool.elite_size,self.pool.rate,self.pool.pop_count,self.pool.pop,self.pool.gen),f,pickle.HIGHEST_PROTOCOL)
+			pickle.dump((self.pool.name,self.pool.elite_size,self.pool.rate,self.pool.pop_count,self.pool.pop,self.pool.gen,self.highscore,self.champ),f,pickle.HIGHEST_PROTOCOL)
 	def snek_main(self,stdscr,cycle:int):
 		nearest=-99
 		snek.apple=self.apple
@@ -149,8 +156,9 @@ class Snek_Manager():
 		return nearest
 	def main(self,stdscr):
 		stdscr.nodelay(True)
-		self.highscore=0
-		self.champ=(0,0)
+		if not self.lff:
+			self.highscore=0
+			self.champ=(0,0)
 		while True:
 			self.bos=snek.randpos()+[0]
 			self.apple=snek.randpos()
