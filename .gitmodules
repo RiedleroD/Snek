@@ -1,0 +1,3 @@
+[submodule "rgraphics"]
+	path = rgraphics
+	url = git@github.com:RiedleroD/rgraphics.git
